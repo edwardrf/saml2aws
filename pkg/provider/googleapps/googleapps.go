@@ -559,17 +559,23 @@ func (kc *Client) loadChallengeEntryPage(doc *goquery.Document, submitURL string
 		return true
 	})
 
-	if challengeEntry == "" {
-		return nil, errors.New("unable to find supported second factor")
+	if challengeEntry != "" {
+		query := fmt.Sprintf(`[data-challengeentry="%s"]`, challengeEntry)
+		responseForm, newActionURL, err := extractInputsByFormQuery(doc, query)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to extract challenge form")
+		}
+		return kc.loadChallengePage(newActionURL, submitURL, responseForm, loginDetails)
 	}
 
-	query := fmt.Sprintf(`[data-challengeentry="%s"]`, challengeEntry)
-	responseForm, newActionURL, err := extractInputsByFormQuery(doc, query)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to extract challenge form")
+	// New layout, form does not have any id
+	formData, actionURL, err := extractInputsByFormQuery(doc, "")
+	if err != nil && actionURL != "" {
+		return nil, errors.New("could not find any forms with actions")
 	}
 
-	return kc.loadChallengePage(newActionURL, submitURL, responseForm, loginDetails)
+	formData.Set("challenge", "5,undefined")
+	return kc.loadChallengePage(actionURL, submitURL, formData, loginDetails)
 }
 
 func (kc *Client) postJSON(submitURL string, values map[string]string, referer string) (*http.Response, error) {
